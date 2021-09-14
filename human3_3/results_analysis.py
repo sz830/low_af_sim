@@ -2,13 +2,15 @@ from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
 
-# This time we look at a discovered vcf we're looking for the 29000 mutations inserted at 19 different coverage bins.
+# This time we look at a discovered vcf we're looking for the 28,800 mutations inserted at 48 different coverage bins.
 
+# Intersection between lists
 def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value in lst2]
     return lst3
 
 data_3d = []
+# Map bin number to "average" coverage level at that bin.
 bin_map = {1: 5,
 		   2: 15,
 		   3: 25,
@@ -58,6 +60,7 @@ bin_map = {1: 5,
 		   47: 2850,
 		   48: 2950}
 
+# Obtain the original mutation indices same for all bam files
 mutations_file = open("./artificial_mutations/1_mutations.vcf", "r")
 txt = mutations_file.read()
 lines = txt.splitlines()[3:] # trash the first 3 header lines
@@ -69,12 +72,13 @@ for line in lines:
 	artificial_mutation_indices.append(index)
 print(str(len(artificial_mutation_indices))+" Artificial mutations") # should be 28,800
 
+# Separate mutation indices by every 600 to get the mutations per coverage level
 def chunks(lst, n):
 	"""Yield successive n-sized chunks from lst."""
 	for i in range(0, len(lst), n):
 		yield lst[i:i + n]
 
-bins = list(chunks(artificial_mutation_indices, 600)) # generate mutations used 600 mutations per coverage level
+bins = list(chunks(artificial_mutation_indices, 600))
 print("Num of bins should be 48:"+str(len(bins)))
 print("Size of first bin should be 600:"+str(len(bins[0])))
 print("Size of last bin should be 600:"+str(len(bins[len(bins)-1])))
@@ -84,7 +88,7 @@ for AF in range(1,21):
 	txt = mods_file.read()
 	lines = txt.splitlines()
 	
-	# Find when the header ends, toss the lines before that
+	# Find when the header ends, toss the header
 	start_index = 0
 	for i in range(100000):
 		if lines[i][0] != "#":
@@ -99,17 +103,18 @@ for AF in range(1,21):
 		index = words[1]
 		found_mutation_indices.append(index)
 
-	print(str(len(found_mutation_indices))+" Total mutations found by Mutect out of what shoudl be 28,800")
+	print(str(len(found_mutation_indices))+" Total mutations found by Mutect out of 28,800")
 
-	bin_number = 0
+	bin_number = 1
 	for i in bins:
-		bin_number+=1
-		found_artificial_mutations=intersection(found_mutation_indices,i)
-		print("For AF:"+str(AF)+" and coverage:"+str(bin_number)+" found:"+str(len(found_artificial_mutations)) +" out of 600")
+		found_artificial_mutations=intersection(found_mutation_indices, i)
+		print("For AF:"+str(AF)+" and coverage:"+str(bin_map[bin_number])+" found:"+str(len(found_artificial_mutations)) +" out of 600")
 		false_negative_rate = 1-(len(found_artificial_mutations)/600)
 		print("False negative rate:"+str(false_negative_rate))
 		data_3d.append([AF,bin_map[bin_number],false_negative_rate])
+		bin_number+=1
 
+# Plot the data
 fig = plt.figure()
 ax = plt.axes(projection='3d')
 xdata=[]
@@ -120,6 +125,7 @@ for point in data_3d:
 	ydata.append(point[1])
 	zdata.append(point[2])
 
+# Print data so it can by copy pasted into plot_results.py
 print(data_3d)
 
 ax.scatter3D(xdata, ydata, zdata)

@@ -1,20 +1,31 @@
-mouse exome chr 1
-human3 contig 1
+This analysis uses data for human cells sequenced at 1000x coverage obtained from
+https://www.ncbi.nlm.nih.gov/sra/SRX5342252[accn]
+After aligning the bam is stored as human3.bam
 
-This experiment aims to find the relationship between Coverage and False negative
+This experiment aims to find the relationship between coverage, allele frequency and false negatives
 
-Same as human3-2 but
-1) Mutation indices will be picked with an additional filter for mapq and queryQ
-2) Mutation indices will be the same for each bam file. last time it was random sample 1000 per coverage bin
-3) Coverages will be binned to be by 10step until 200x and then 100step until 3000x making it about 50,000 mutations per bam file.
-4) Lets crank AF up to 15%
-5) This time I'll verify in IGV a lot more so there won't be any bugs. not that there's proof there were any last time.
+1) Indices selected for artificial mutation are filtered for sufficient mapQ and readQ
+2) Mutation indices will be the same for each bam file. The difference is the percentage of reads mutated. the allele frequency
+3) Coverages will be binned with step 10 until 200x and then step 100 until 3000x and 600 indices are selected per coverage bin. This makes 28,800 total artificial mutations per bam file. 600 x 48bins
+4) Allele frequency will step by 1% from 1 to 20%
 
+Artificial mutations are inserted with biostar404363.jar, a script developed by Lindenbaum, Pierre
+Obtained through http://lindenb.github.io/jvarkit/Biostar404363.html
+Usage - The program take in an original unmodified bam file(human3.bam), and a vcf file containing information on what mutations should be inserted at what rate(will be generated), and uses that to make the modifications.
+
+Preprocessing
+----
+human3.bam was obtained from SRA, aligned, sorted, indexed, then only the first contig (CM000663.2) was separated out with "bamtools split -in human3.bam -reference"
+coverage.txt was obtained with "samtools depth human3.bam -o coverage.txt"
+A copy of hg38 is required as well obtained through Assembly database.
+
+Step for the analysis
+-----
 1) Generate mutations vcf files with
 python generate_mutations_vcf.py
 
-2) Use vcfs to mod the bam and put them in modded_bams folder
-Best not to try running these all in different terminals. I had some weird errors show up. dunno why but it may not be able to do it.
+2) Use generated vcfs to mod the bam and put them in modded_bams folder
+Run batched in different terminal windows
 
 java -jar /Users/jiggy/jvarkit/dist/biostar404363.jar -p ./artificial_mutations/1_mutations.vcf human3.bam -o ./modded_bams/modded_1.bam
 java -jar /Users/jiggy/jvarkit/dist/biostar404363.jar -p ./artificial_mutations/2_mutations.vcf human3.bam -o ./modded_bams/modded_2.bam
@@ -41,6 +52,7 @@ java -jar /Users/jiggy/jvarkit/dist/biostar404363.jar -p ./artificial_mutations/
 java -jar /Users/jiggy/jvarkit/dist/biostar404363.jar -p ./artificial_mutations/20_mutations.vcf human3.bam -o ./modded_bams/modded_20.bam
 
 3) Index the bams
+cd modded_bams
 samtools index modded_1.bam
 samtools index modded_2.bam
 samtools index modded_3.bam
@@ -62,9 +74,8 @@ samtools index modded_18.bam
 samtools index modded_19.bam
 samtools index modded_20.bam
 
-4) Check IGV for files modded, 1,5,10,15,20
-Check each bins mutations make sure they were all input correctly
-This step is very important.
+4) Check IGV for modded_1.bam, modded_5.bam, modded_10.bam, modded_15.bam, modded_20.bam 
+Make sure artificial mutations are there
 Make sure indices match.
 
 5) Run Mutect on the modded bams. Five in each terminal window
@@ -92,4 +103,7 @@ gatk --java-options -Xmx16G Mutect2 -R ~/reference_genomes/hg38/hg38.fna -I ~/lo
 gatk --java-options -Xmx16G Mutect2 -R ~/reference_genomes/hg38/hg38.fna -I ~/low_af_sim/human3_3/modded_bams/modded_19.bam -O ~/low_af_sim/human3_3/discovered_mutations/19_discovered.vcf
 gatk --java-options -Xmx16G Mutect2 -R ~/reference_genomes/hg38/hg38.fna -I ~/low_af_sim/human3_3/modded_bams/modded_20.bam -O ~/low_af_sim/human3_3/discovered_mutations/20_discovered.vcf
 
-6) Run the compare vcfs script to get final data on how well Mutect did
+6) Compare discovered mutations with artificial mutations to get false negative rate for each AF and coverage level
+python results_analysis.py
+
+7) Copy paste results from results_analysis into the data line of plot_results.py

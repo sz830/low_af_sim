@@ -2,9 +2,8 @@ import pysam
 import random
 import numpy as np
 
-# Usage: First set AF to what percent mutation rate you want
 # Run: python generate_mutations_vcf.py
-# Will read some files and generate artificial mutations files in artificial_mutations folder
+# Will read some files and generate artificial mutations files in artificial_mutations/ folder at allele frequencies 1-20
 
 reference = pysam.FastaFile("/Users/jiggy/reference_genomes/hg38/hg38.fna")
 f = open("coverage.txt", "r") # a file generated via samtools depth. gives coverage at each base
@@ -12,17 +11,19 @@ txt = f.read()
 lines = txt.splitlines() # 23,262,277 bases in this contig
 chrom = "CM000663.2" # because I split the bams by contigs, the low allele freq analysis will be done only on this contig. chrom 1
 
+# Fill the quality_map which contains mapq and readq averaged values at all indices
+# Used to filter indices later
 quality_map = {}
 bam = pysam.AlignmentFile("human3.bam", "rb")
 for pileupcolumn in bam.pileup("CM000663.2", stepper="nofilter", min_base_quality=0):
-	index = pileupcolumn.reference_pos+1 # pysam is 0-indexed, but we want to work with 1-indexed
+	index = pileupcolumn.reference_pos+1 # pysam is 0-indexed, but we work with 1-indexed
 	mapping_qualities = pileupcolumn.get_mapping_qualities()
 	query_qualities = pileupcolumn.get_query_qualities()
 	avg_readq = sum(query_qualities)/len(query_qualities)
 	avg_mapq = sum(mapping_qualities)/len(mapping_qualities)# 60,70,90,100 bins dont have enough entries
 	quality_map[index]=[avg_readq, avg_mapq]
 
-# Thresholds determined after plotting the data and chosen to be the high
+# Thresholds determined after plotting the data and chosen arbitrarily.
 readq_threshold = 30
 mapq_threshold = 43
 # Indices of coverage level A to B.
@@ -78,11 +79,10 @@ indices_2900_3000 = []
 # Sort our 1-based indices into these buckets
 for line in lines:
 	words = line.split()
-	int_index = int(words[1])
-	index = str(words[1])
+	index = words[1]
 	coverage = int(words[2])
-	readq = quality_map[int_index][0]
-	mapq = quality_map[int_index][1]
+	readq = quality_map[int(index)][0]
+	mapq = quality_map[int(index)][1]
 	if(readq >= readq_threshold and mapq >= mapq_threshold):
 		if(coverage<10):
 			indices_0_10.append(index)
@@ -181,8 +181,7 @@ for line in lines:
 		elif(coverage<3000):
 			indices_2900_3000.append(index)
 
-
-print("Printing bin sizes") # They all have to be >1000 else I'd have to merge bins or lower quality threshold
+print("Printing bin sizes") # To get an idea of how many artificial mutations can be created per bin
 print(len(indices_0_10))
 print(len(indices_10_20))
 print(len(indices_20_30))
@@ -233,7 +232,7 @@ print(len(indices_2800_2900))
 print(len(indices_2900_3000))
 
 # Select mutation indices randomly from areas of high coverage
-n_mutations = 600 # Shrunk a bit because some bins don't have that many. plus i don't want the entire bam to be mutations
+n_mutations = 600 # Some bins don't 1000 viable indices.
 indices_0_10 = random.sample(indices_0_10, n_mutations)
 indices_0_10.sort()
 indices_10_20 = random.sample(indices_10_20, n_mutations)
